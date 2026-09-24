@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Application Form</title>
+<style>
+  :root{
+    --accent:#2c3e50;
+    --border:#ccc;
+    --sectionbg:#eee;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    margin:0;
+    background:#f4f5f7;
+    color:#222;
+  }
+  header{
+    background:var(--accent);
+    color:#fff;
+    padding:16px 20px;
+  }
+  header h1{margin:0;font-size:20px;}
+  header p{margin:4px 0 0;font-size:12px;opacity:.85;}
+
+  #formWrap{
+    max-width:900px;
+    margin:16px auto;
+    padding:0 12px 90px;
+  }
+  fieldset{
+    border:1px solid var(--border);
+    border-radius:4px;
+    margin-bottom:14px;
+    padding:10px 14px 14px;
+    background:#fff;
+  }
+  legend{
+    font-weight:bold;
+    background:var(--sectionbg);
+    padding:3px 8px;
+    border-radius:3px;
+    font-size:13px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px 18px;
+  }
+  .field{display:flex;flex-direction:column;margin-top:6px;}
+  .field.full{grid-column:1 / -1;}
+  .field label{font-size:12px;font-weight:600;margin-bottom:2px;color:#333;}
+  .field input, .field textarea{
+    font-size:13px;
+    padding:5px 6px;
+    border:1px solid var(--border);
+    border-radius:3px;
+    width:100%;
+    font-family:inherit;
+  }
+  .field textarea{resize:vertical;min-height:38px;}
+  .field .err{color:#c0392b;font-size:11px;margin-top:2px;display:none;}
+  .field.invalid input, .field.invalid textarea{border-color:#c0392b;background:#fff5f5;}
+  .field.invalid .err{display:block;}
+
+  #actionBar{
+    position:fixed;bottom:0;left:0;right:0;
+    background:#fff;border-top:1px solid var(--border);
+    padding:10px 20px;display:flex;justify-content:space-between;align-items:center;
+    box-shadow:0 -2px 6px rgba(0,0,0,.08);
+  }
+  button{
+    font-size:14px;padding:9px 18px;border-radius:4px;border:1px solid var(--accent);
+    cursor:pointer;
+  }
+  #exportBtn{background:var(--accent);color:#fff;}
+  #resetBtn{background:#fff;color:var(--accent);}
+  #status{font-size:12px;color:#555;margin-right:14px;}
+
+  /* ---- hidden print-only area (built dynamically before printing) ---- */
+  #printArea{
+    position:fixed;
+    left:-99999px;
+    top:0;
+    width:174mm;             /* A4 width (210mm) minus 18mm margins each side */
+    padding:4mm;
+    border:1px solid #999;
+    box-sizing:border-box;
+    background:#fff;
+    display:block;
+  }
+  #printArea .p-title{font-size:1.7em;font-weight:bold;margin-bottom:.3em;text-align:center;}
+  #printArea .p-rule{border:none;border-top:1px solid #000;margin:0 0 .25em;}
+  #printArea .p-section{
+    background:#eaeaea;font-weight:bold;padding:.15em .3em;margin:.35em 0 .2em;
+    break-inside:avoid;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  #printArea .p-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:0 14px;
+  }
+  #printArea .p-entry{break-inside:avoid;padding:.08em 0;font-weight:normal;}
+  #printArea .p-entry.full{grid-column:1 / -1;}
+  #printArea .p-entry b{font-weight:bold;}
+
+  @media print{
+    body > *:not(#printArea){display:none !important;}
+    #printArea{
+      position:static;
+      left:auto;
+      margin:0 auto;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+    @page{size:A4;margin:18mm;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Application Form</h1>
+  <p>Fill in the fields below, then click "Export / Print" to print or save as a one-page A4 PDF.</p>
+</header>
+
+<div id="formWrap"></div>
+
+<div id="actionBar">
+  <span id="status"></span>
+  <div>
+    <button id="resetBtn" type="button">Clear / Reset</button>
+    <button id="exportBtn" type="button">Export / Print (PDF)</button>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+/* ------------------------------------------------------------------
+   1. FIELD DEFINITIONS  (same 77 fields, same order, as main.py)
+   Field 76's real label was not supplied -> clearly marked placeholder.
+   Duplicate labels (e.g. "House/Flat/Shop No.") are kept as separate
+   fields with distinct internal ids -- nothing is merged.
+------------------------------------------------------------------- */
+const SEC = {
+  PRODUCT:"Product / Application Information",
+  PERSONAL:"Applicant Personal Information",
+  RESIDENCE:"Residence / Employment Information",
+  ADDITIONAL:"Additional / Related Person Information"
+};
+
+const RAW_FIELDS = [
+ [1,"S. No.","numeric",SEC.PRODUCT],
+ [2,"Product Sub Class","text",SEC.PRODUCT],
+ [3,"Product Type","text",SEC.PRODUCT],
+ [4,"Origin City","text",SEC.PRODUCT],
+ [5,"Referral Branch","text",SEC.PRODUCT],
+ [6,"Channel","text",SEC.PRODUCT],
+ [7,"Rate/Pricing Option","text",SEC.PRODUCT],
+ [8,"Preferred Mailing Address","long_text",SEC.PRODUCT],
+ [9,"Card Destination","text",SEC.PRODUCT],
+ [10,"PB/BM Employee No.","numeric",SEC.PRODUCT],
+ [11,"Desired Financing","numeric",SEC.PRODUCT],
+ [12,"Tenure","numeric",SEC.PRODUCT],
+ [13,"Relationship with Applicant","text",SEC.PRODUCT],
+
+ [14,"Phone(1)","phone",SEC.PERSONAL],
+ [15,"First Name","text",SEC.PERSONAL],
+ [16,"Middle Name","text",SEC.PERSONAL],
+ [17,"Last Name","text",SEC.PERSONAL],
+ [18,"Old NIC","text",SEC.PERSONAL],
+ [19,"New NIC","text",SEC.PERSONAL],
+ [20,"Passport No.","text",SEC.PERSONAL],
+ [21,"Issue Date","date",SEC.PERSONAL],
+ [22,"Expiry Date","date",SEC.PERSONAL],
+ [23,"NTN","text",SEC.PERSONAL],
+ [24,"Gender","text",SEC.PERSONAL],
+ [25,"Date of Birth","date",SEC.PERSONAL],
+ [26,"Marital Status","text",SEC.PERSONAL],
+ [27,"No. of Children","numeric",SEC.PERSONAL],
+ [28,"Country","text",SEC.PERSONAL],
+ [29,"State","text",SEC.PERSONAL],
+ [30,"City","text",SEC.PERSONAL],
+ [31,"Dependents","numeric",SEC.PERSONAL],
+ [32,"Education","text",SEC.PERSONAL],
+ [33,"Mother Maiden Name","text",SEC.PERSONAL],
+ [34,"Father/Husband Name","text",SEC.PERSONAL],
+ [35,"Father/Husband NIC","text",SEC.PERSONAL],
+ [36,"Father/Husband","text",SEC.PERSONAL],
+ [37,"Father/Husband CNIC","text",SEC.PERSONAL],
+ [38,"Nationality","text",SEC.PERSONAL],
+
+ [39,"House/Flat/Shop No.","text",SEC.RESIDENCE],
+ [40,"Employment Status","text",SEC.RESIDENCE],
+ [41,"Industry","text",SEC.RESIDENCE],
+ [42,"Nature of Business","long_text",SEC.RESIDENCE],
+ [43,"House/Flat/Shop No.","text",SEC.RESIDENCE],
+ [44,"State","text",SEC.RESIDENCE],
+ [45,"City","text",SEC.RESIDENCE],
+ [46,"Residence Type/Nature","text",SEC.RESIDENCE],
+ [47,"Occupation Category","text",SEC.RESIDENCE],
+ [48,"House/Flat/Shop No.","text",SEC.RESIDENCE],
+ [49,"City","text",SEC.RESIDENCE],
+ [50,"Mobile","phone",SEC.RESIDENCE],
+ [51,"Email","email",SEC.RESIDENCE],
+ [52,"Occupation Category","text",SEC.RESIDENCE],
+ [53,"Other Company Name","text",SEC.RESIDENCE],
+ [54,"Employment Status","text",SEC.RESIDENCE],
+ [55,"Industry","text",SEC.RESIDENCE],
+ [56,"Nature Of Business","long_text",SEC.RESIDENCE],
+ [57,"Employment Status","text",SEC.RESIDENCE],
+ [58,"Occupation Category","text",SEC.RESIDENCE],
+ [59,"House/Flat/Shop No.","text",SEC.RESIDENCE],
+ [60,"City","text",SEC.RESIDENCE],
+ [61,"Phone","phone",SEC.RESIDENCE],
+ [62,"Phone 2","phone",SEC.RESIDENCE],
+ [63,"Post Code","numeric",SEC.RESIDENCE],
+ [64,"Fax","phone",SEC.RESIDENCE],
+ [65,"Currency","text",SEC.RESIDENCE],
+ [66,"Gross Income","numeric",SEC.RESIDENCE],
+ [77,"Expense","numeric",SEC.RESIDENCE],
+
+ [67,"Title","text",SEC.ADDITIONAL],
+ [68,"First Name","text",SEC.ADDITIONAL],
+ [69,"Last Name","text",SEC.ADDITIONAL],
+ [70,"Gender","text",SEC.ADDITIONAL],
+ [71,"New NIC","text",SEC.ADDITIONAL],
+ [72,"House/Flat/Shop No.","text",SEC.ADDITIONAL],
+ [73,"Country","text",SEC.ADDITIONAL],
+ [74,"State","text",SEC.ADDITIONAL],
+ [75,"City","text",SEC.ADDITIONAL],
+];
+
+function slugify(s){
+  return s.replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"").toLowerCase().slice(0,30) || "field";
+}
+
+const FIELDS = RAW_FIELDS.map(([num,label,type,section])=>({
+  num, label, type, section,
+  key:`field_${String(num).padStart(2,"0")}_${slugify(label)}`,
+  full: type==="long_text"
+}));
+
+const SECTIONS = [SEC.PRODUCT, SEC.PERSONAL, SEC.RESIDENCE, SEC.ADDITIONAL];
+
+/* ------------------------------------------------------------------
+   2. BUILD THE ON-SCREEN FORM
+------------------------------------------------------------------- */
+const formWrap = document.getElementById("formWrap");
+
+function inputTypeFor(type){
+  switch(type){
+    case "numeric": return "number";
+    case "email": return "email";
+    case "date": return "date";
+    default: return "text";
+  }
+}
+
+SECTIONS.forEach(section=>{
+  const fs = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  legend.textContent = section;
+  fs.appendChild(legend);
+  const grid = document.createElement("div");
+  grid.className = "grid";
+
+  FIELDS.filter(f=>f.section===section).forEach(f=>{
+    const wrap = document.createElement("div");
+    wrap.className = "field" + (f.full ? " full" : "");
+    wrap.id = "wrap_" + f.key;
+
+    const label = document.createElement("label");
+    label.htmlFor = f.key;
+    label.textContent = f.label;
+    wrap.appendChild(label);
+
+    let input;
+    if(f.type === "long_text"){
+      input = document.createElement("textarea");
+      input.rows = 2;
+    } else {
+      input = document.createElement("input");
+      input.type = inputTypeFor(f.type);
+      if(f.type === "phone") input.placeholder = "+92 300 1234567";
+      if(f.type === "numeric") input.step = "any";
+    }
+    input.id = f.key;
+    input.dataset.key = f.key;
+    input.dataset.type = f.type;
+    input.dataset.num = f.num;
+    input.dataset.label = f.label;
+    wrap.appendChild(input);
+
+    const err = document.createElement("div");
+    err.className = "err";
+    wrap.appendChild(err);
+
+    grid.appendChild(wrap);
+  });
+
+  fs.appendChild(grid);
+  formWrap.appendChild(fs);
+});
+
+/* ------------------------------------------------------------------
+   3. VALIDATION  (mirrors main.py's rules)
+------------------------------------------------------------------- */
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const PHONE_RE = /^[0-9+\-\s()]{5,25}$/;
+
+function validateField(f, raw){
+  const value = raw.trim();
+  if(f.type === "numeric"){
+    if(value === "") return {value:"", err:null};
+    if(isNaN(Number(value.replace(/,/g,"")))) return {value, err:`"${f.label}" (#${f.num}) must be a number.`};
+    return {value, err:null};
+  }
+  if(f.type === "email"){
+    if(value === "") return {value:"", err:null};
+    if(!EMAIL_RE.test(value)) return {value, err:`"${f.label}" (#${f.num}) is not a valid email address.`};
+    return {value, err:null};
+  }
+  if(f.type === "phone"){
+    if(value === "") return {value:"", err:null};
+    if(!PHONE_RE.test(value)) return {value, err:`"${f.label}" (#${f.num}) must be a valid phone number.`};
+    return {value, err:null};
+  }
+  if(f.type === "date"){
+    return {value, err:null}; // native <input type=date> already constrains format
+  }
+  if(f.type === "long_text"){
+    if(value.length > 600) return {value, err:`"${f.label}" (#${f.num}) is too long (max 600 characters) to keep the form on one page.`};
+    return {value, err:null};
+  }
+  if(value.length > 120) return {value, err:`"${f.label}" (#${f.num}) is too long (max 120 characters) to keep the form on one page.`};
+  return {value, err:null};
+}
+
+function collectAndValidate(){
+  const values = {};
+  const errors = [];
+  FIELDS.forEach(f=>{
+    const el = document.getElementById(f.key);
+    const wrap = document.getElementById("wrap_"+f.key);
+    const errDiv = wrap.querySelector(".err");
+    const {value, err} = validateField(f, el.value);
+    values[f.key] = value;
+    if(err){
+      errors.push(err);
+      wrap.classList.add("invalid");
+      errDiv.textContent = err;
+    } else {
+      wrap.classList.remove("invalid");
+      errDiv.textContent = "";
+    }
+  });
+  return {values, errors};
+}
+
+/* ------------------------------------------------------------------
+   4. SINGLE-PAGE FIT + PRINT
+   Builds the compact print layout, then binary-searches a font size
+   (10pt down to 4pt) using the *real* rendered height of the content
+   (off-screen), so it is proven to fit one A4 page before printing.
+------------------------------------------------------------------- */
+const printArea = document.getElementById("printArea");
+const MM_TO_PX = 96 / 25.4;              // CSS px per mm at 96dpi
+const PAGE_USABLE_HEIGHT_PX = (297 - 36) * MM_TO_PX; // A4 height minus 18mm top+bottom margins
+const FONT_CANDIDATES = [10,9.5,9,8.5,8,7.5,7,6.5,6,5.5,5,4.5,4];
+
+function buildPrintHTML(values, fontPt){
+  let html = `<div class="p-title" style="font-size:${fontPt*1.7}pt">Application Form</div><hr class="p-rule">`;
+  SECTIONS.forEach(section=>{
+    html += `<div class="p-section" style="font-size:${fontPt*1.05}pt">${section}</div>`;
+    html += `<div class="p-grid" style="font-size:${fontPt}pt;line-height:1.35;">`;
+    FIELDS.filter(f=>f.section===section).forEach(f=>{
+      const val = values[f.key] || "________";
+      const cls = "p-entry" + (f.full ? " full" : "");
+      html += `<div class="${cls}"><b>${f.label}:</b> ${escapeHtml(val)}</div>`;
+    });
+    html += `</div>`;
+  });
+  return html;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function fitAndPrint(values){
+  let chosen = null;
+  for(const fs of FONT_CANDIDATES){
+    printArea.innerHTML = buildPrintHTML(values, fs);
+    const h = printArea.scrollHeight;
+    if(h <= PAGE_USABLE_HEIGHT_PX){
+      chosen = fs;
+      break;
+    }
+  }
+  if(chosen === null){
+    document.getElementById("status").textContent =
+      "Content too long to fit one A4 page even at the smallest font. Please shorten some answers.";
+    alert("The entered text is too long to fit on a single A4 page, even after shrinking the font as much as reasonably possible.\n\nPlease shorten some of the longer answers (especially address / business-nature fields) and try again. Nothing has been printed.");
+    return;
+  }
+  // printArea already holds the chosen layout; trigger print (user can
+  // choose a physical printer or "Save as PDF" in the print dialog).
+  window.print();
+  document.getElementById("status").textContent = `Ready to print (font size used: ${chosen}pt).`;
+}
+
+/* ------------------------------------------------------------------
+   5. BUTTONS
+------------------------------------------------------------------- */
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const {values, errors} = collectAndValidate();
+  if(errors.length){
+    alert("Please fix the following before printing:\n\n" + errors.slice(0,12).join("\n") + (errors.length>12 ? "\n...and more." : ""));
+    document.getElementById("status").textContent = `${errors.length} field(s) need attention.`;
+    return;
+  }
+  fitAndPrint(values);
+});
+
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  if(!confirm("Clear all entered data?")) return;
+  FIELDS.forEach(f=>{
+    document.getElementById(f.key).value = "";
+    document.getElementById("wrap_"+f.key).classList.remove("invalid");
+  });
+  document.getElementById("status").textContent = "Form cleared.";
+});
+</script>
+</body>
+</html>

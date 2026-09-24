@@ -60,12 +60,9 @@ RAW_FIELDS = [
     (15, "First Name", "text", SECTION_PERSONAL),
     (16, "Middle Name", "text", SECTION_PERSONAL),
     (17, "Last Name", "text", SECTION_PERSONAL),
-    (18, "Old NIC", "text", SECTION_PERSONAL),
     (19, "New NIC", "text", SECTION_PERSONAL),
-    (20, "Passport No.", "text", SECTION_PERSONAL),
     (21, "Issue Date", "date", SECTION_PERSONAL),
     (22, "Expiry Date", "date", SECTION_PERSONAL),
-    (23, "NTN", "text", SECTION_PERSONAL),
     (24, "Gender", "text", SECTION_PERSONAL),
     (25, "Date of Birth", "date", SECTION_PERSONAL),
     (26, "Marital Status", "text", SECTION_PERSONAL),
@@ -104,10 +101,6 @@ RAW_FIELDS = [
     (58, "Occupation Category", "text", SECTION_RESIDENCE),
     (59, "House/Flat/Shop No.", "text", SECTION_RESIDENCE),
     (60, "City", "text", SECTION_RESIDENCE),
-    (61, "Phone", "phone", SECTION_RESIDENCE),
-    (62, "Phone 2", "phone", SECTION_RESIDENCE),
-    (63, "Post Code", "numeric", SECTION_RESIDENCE),
-    (64, "Fax", "phone", SECTION_RESIDENCE),
     (65, "Currency", "text", SECTION_RESIDENCE),
     (66, "Gross Income", "numeric", SECTION_RESIDENCE),
     (77, "Expense", "numeric", SECTION_RESIDENCE),
@@ -147,8 +140,8 @@ FIELDS = [Field(*row) for row in RAW_FIELDS]
 SECTIONS = [SECTION_PRODUCT, SECTION_PERSONAL, SECTION_RESIDENCE, SECTION_ADDITIONAL]
 FIELDS_BY_SECTION = {s: [f for f in FIELDS if f.section == s] for s in SECTIONS}
 
-assert len(FIELDS) == 76, "76 fields expected: original 75 usable positions + the added Expense field"
-assert len({f.key for f in FIELDS}) == 76, "Internal field ids must be unique"
+assert len(FIELDS) == 69, "69 fields expected: 76 original positions minus 7 removed fields"
+assert len({f.key for f in FIELDS}) == 69, "Internal field ids must be unique"
 
 
 # ----------------------------------------------------------------------
